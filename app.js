@@ -10,8 +10,81 @@ var http = require('http').Server(app);
 var cloudcmd = require('cloudcmd');
 var bodyParser = require('body-parser');
 var { pamAuthenticate, pamErrors } = require('node-linux-pam');
-var CUSTOM_PORT = process.env.CUSTOM_PORT || 3000;
+var CUSTOM_PORT = process.env.CUSTOM_PORT || 8888;
 var baserouter = express.Router();
+
+//// JupyterHub auth related code
+const session = require('express-session');
+const passport = require('passport');
+const OAuth2Strategy = require('passport-oauth2');
+const axios = require('axios')
+
+const clientHubApiUrl = 'http://localhost:9000/fairdi/nomad/latest/north/hub/api'; // process.env.JUPYTERHUB_API_URL
+const serverHubApiUrl = 'http://host.docker.internal:9000/fairdi/nomad/latest/north/hub/api';
+const secret = process.env.JUPYTERHUB_API_TOKEN
+const user = process.env.JUPYTERHUB_USER
+
+const passportOptions = {
+  authorizationURL: `${clientHubApiUrl}/oauth2/authorize`,
+  tokenURL: `${serverHubApiUrl}/oauth2/token`,
+  clientID: process.env.JUPYTERHUB_CLIENT_ID,
+  clientSecret: secret,
+
+}
+
+passport.use(new OAuth2Strategy(
+  passportOptions,
+  function(accessToken, refreshToken, params, profile, done) {
+    axios.get(`${serverHubApiUrl}/user`, {
+      headers: { 'Authorization': `Bearer ${params['access_token']}`}
+    }).then(response => {
+      if (!response?.data?.name) {
+        done('Cannot info for loggedin user to authorize access.', null);
+      } else if (response?.data?.name !== user) {
+        done('Logged in user does not match the container\'s user', null);
+      } else {
+        done(null, response.data);
+      }
+    }).catch(error => done(error, null))
+  }
+));
+
+passport.serializeUser(function(user, done) {
+  done(null, user);
+});
+
+passport.deserializeUser(function(user, done) {
+  done(null, user);
+});
+
+baserouter.use(session({ secret: secret, cookie: { maxAge: 60000, path: baseurl }}))
+baserouter.use(passport.initialize());
+baserouter.use(passport.session());
+
+function northAuth(req, res, next) {
+  console.log('###', req.path)
+  if (req.path === '') {
+    return res.redirect(`${baseurl}north/login`);
+  }
+  if (req.path === '/north/login' || req.path === '/oauth_callback') {
+    return next();
+  }
+  if (!req.user) {
+    return res.redirect(`${baseurl}north/login`);
+  }
+  next();
+};
+
+baserouter.use(northAuth);
+
+baserouter.get('/north/login', passport.authenticate('oauth2'));
+
+baserouter.get('/oauth_callback',
+  passport.authenticate('oauth2'),
+  function(req, res) {
+    res.redirect(baseurl);
+  });
+
 
 ///// Guac Websocket Tunnel ////
 var GuacamoleLite = require('guacamole-lite');
@@ -89,7 +162,7 @@ baserouter.post('/files', function(req, res, next){
   };
   pamAuthenticate(options, function(err, code) {
     if (!err) {
-      next();	
+      next();
     } else {
       res.send('Unauthorized');
       res.end();
