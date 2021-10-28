@@ -1,7 +1,7 @@
 // LinuxServer Guacamole Client
 
 //// Application Variables ////
-var baseurl = process.env.SUBFOLDER || '/';
+var baseurl = process.env.JUPYTERHUB_SERVICE_PREFIX || process.env.SUBFOLDER || '/';
 var crypto = require('crypto');
 var ejs = require('ejs');
 var express = require('express');
@@ -28,8 +28,7 @@ const passportOptions = {
   authorizationURL: `${clientHubApiUrl}/oauth2/authorize`,
   tokenURL: `${serverHubApiUrl}/oauth2/token`,
   clientID: process.env.JUPYTERHUB_CLIENT_ID,
-  clientSecret: secret,
-
+  clientSecret: secret
 }
 
 passport.use(new OAuth2Strategy(
@@ -62,7 +61,6 @@ baserouter.use(passport.initialize());
 baserouter.use(passport.session());
 
 function northAuth(req, res, next) {
-  console.log('###', req.path)
   if (req.path === '') {
     return res.redirect(`${baseurl}north/login`);
   }
@@ -185,8 +183,17 @@ baserouter.use('/files', cloudcmd({
   }
 }))
 
-// Spin up application on CUSTOM_PORT with fallback to port 3000
+app.use((req, res, next) => {
+  if (!req.path.startsWith(baseurl)) {
+    res.redirect(301, baseurl)
+  } else {
+    next()
+  }
+})
+
 app.use(baseurl, baserouter);
+
+// Spin up application on CUSTOM_PORT with fallback to port 3000
 http.listen(CUSTOM_PORT, function(){
   console.log('listening on *:' + CUSTOM_PORT);
 });
