@@ -19,8 +19,8 @@ const passport = require('passport');
 const OAuth2Strategy = require('passport-oauth2');
 const axios = require('axios')
 
-const clientHubApiUrl = 'http://localhost:9000/fairdi/nomad/latest/north/hub/api'; // process.env.JUPYTERHUB_API_URL
-const serverHubApiUrl = 'http://host.docker.internal:9000/fairdi/nomad/latest/north/hub/api';
+const clientHubApiUrl = process.env.JUPYTERHUB_CLIENT_API_URL
+const serverHubApiUrl = process.env.JUPYTERHUB_API_URL
 const secret = process.env.JUPYTERHUB_API_TOKEN
 const user = process.env.JUPYTERHUB_USER
 
