@@ -13,7 +13,7 @@ var { pamAuthenticate, pamErrors } = require('node-linux-pam');
 var CUSTOM_PORT = process.env.CUSTOM_PORT || 8888;
 var baserouter = express.Router();
 
-if (!process.env.DISABLE_OAUTH) {
+if (process.env.JUPYTERHUB_API_URL) {
   //// JupyterHub auth related code
   const session = require('express-session');
   const passport = require('passport');
